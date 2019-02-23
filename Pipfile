@@ -1,0 +1,21 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+ipdb = "*"
+pep8 = "*"
+flake8 = "*"
+autopep8 = "*"
+
+[packages]
+tensorflow = "*"
+neuralgym = {git = "https://github.com/JiahuiYu/neuralgym"}
+pillow = "*"
+opencv-python = "*"
+pyyaml = "*"
+matplotlib = "*"
+
+[requires]
+python_version = "3.6"

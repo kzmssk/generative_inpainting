@@ -38,7 +38,6 @@ if __name__ == "__main__":
     image = np.expand_dims(image, 0)
     mask = np.expand_dims(mask, 0)
     input_image = np.concatenate([image, mask], axis=2)
-
     sess_config = tf.ConfigProto()
     sess_config.gpu_options.allow_growth = True
     with tf.Session(config=sess_config) as sess:
@@ -53,7 +52,8 @@ if __name__ == "__main__":
         for var in vars_list:
             vname = var.name
             from_name = vname
-            var_value = tf.contrib.framework.load_variable(args.checkpoint_dir, from_name)
+            var_value = tf.contrib.framework.load_variable(
+                args.checkpoint_dir, from_name)
             assign_ops.append(tf.assign(var, var_value))
         sess.run(assign_ops)
         print('Model loaded.')
