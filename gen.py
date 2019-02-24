@@ -12,9 +12,10 @@ import matplotlib.gridspec as grid
 
 
 class Processor(object):
-    def __init__(self, ckpt, input_width=680, input_height=512):
+    def __init__(self, ckpt, input_width=680, input_height=512, mask_width=50):
         self.input_width = input_width
         self.input_height = input_height
+        self.mask_width = mask_width
 
         # initialize tf session
         self.sess = tf.InteractiveSession()
@@ -59,17 +60,17 @@ class Processor(object):
         """
         x = Image.open(str(filename)).convert("RGB").resize(
             (self.input_width, self.input_height))
-        return np.asarray(x, dtype=np.float32)
+        return np.asarray(x, dtype=np.uint8)
 
-    def process(self, x):
+    def process(self, x, shift=False):
         """ process matrix x.
         args:
             x (np.array): input data whose shape = [self.width, self.height, 3]
         returns:
             np.array uint8 image array [w, h, k]
-         """
-        mask, masked = self.make_mask(x)
-        input_arr = np.concatenate([x, mask], axis=1)
+        """
+        mask, masked = self.make_mask(x.astype(np.float32), shift)
+        input_arr = np.concatenate([masked, mask], axis=1)
         input_arr = np.expand_dims(input_arr, axis=0)
         feed_dict = {self.input_plh: input_arr}
         output_arr = self.sess.run(self.output, feed_dict)
@@ -79,20 +80,16 @@ class Processor(object):
                              output=output_arr)
         return result
 
-    def make_mask(self, x, mask_width=50):
+    def make_mask(self, x, shift):
         mask = np.zeros((self.input_height, self.input_width, 3),
                         dtype=np.float32)
-        mask[:, :mask_width, :] = 255.0
+        mask[:, :self.mask_width, :] = 255.0
+
         masked = copy.deepcopy(x)
-        masked[:, :mask_width, :] = 255.0
+        if shift:
+            masked[:, self.mask_width:, :] = x[:, :-self.mask_width, :]
+        masked[:, :self.mask_width, :] = 255.0
         return mask, masked
-
-
-def preprocess(x):
-    if x.dtype == np.float32:
-        return x.astype(np.uint8)
-    else:
-        raise NotImplementedError
 
 
 def show_result(result, bg_color="darkgray"):
@@ -131,9 +128,44 @@ def gen(args, logger=None):
     show_result(result)
 
 
+def gen_many_steps(args, logger=None, bg_color="darkgray"):
+    if logger is None:
+        logger = logging.getLogger(__name__)
+
+    # check args
+    assert args.input_image.exists(), f"{args.input_image} does not exist"
+    assert args.ckpt.parent.exists(), f"{args.ckpt.parent} does not exist"
+
+    # initialize Processor
+    processor = Processor(args.ckpt, mask_width=10)
+
+    # preprocess image
+    x = processor.load_image(args.input_image)
+
+    steps = 5
+    fig = plt.figure()
+    fig.patch.set_facecolor(bg_color)
+    gs = grid.GridSpec(1, steps + 1)
+
+    def show_image(ax, image, title):
+        ax.imshow(image)
+        ax.set_axis_off()
+        ax.set_title(title)
+
+    ax = fig.add_subplot(gs[0, 0])
+    show_image(ax, x, "input")
+
+    for step in range(steps):
+        ax = fig.add_subplot(gs[0, step + 1])
+        x = processor.process(x, shift=True)["output"]
+        show_image(ax, x, f"step {step + 1}")
+    plt.show()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("input_image", type=Path)
     parser.add_argument("ckpt", type=Path)
     args = parser.parse_args()
-    gen(args)
+    # gen(args)
+    gen_many_steps(args)
